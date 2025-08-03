@@ -16,3 +16,19 @@ Loaded 0 active rules
 2025-08-03 10:51:22,672 - __main__ - [32mINFO[0m - Loaded 0 active rules
 🚀 Starting ForwardBot Premium v3.0.0...
 2025-08-03 10:51:22,673 - __main__ - [32mINFO[0m - 🚀 Starting ForwardBot Premium v3.0.0...
+Loaded 0 active rules
+2025-08-03 10:54:58,668 - __main__ - [32mINFO[0m - Loaded 0 active rules
+Loaded 0 active rules
+2025-08-03 10:54:58,670 - __main__ - [32mINFO[0m - Loaded 0 active rules
+🚀 Starting ForwardBot Premium v3.0.0...
+2025-08-03 10:54:58,670 - __main__ - [32mINFO[0m - 🚀 Starting ForwardBot Premium v3.0.0...
+2025-08-03 10:54:58,708 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-08-03 10:54:58,709 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-08-03 10:54:59,198 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7947140028:AAGOigrSSUATHbiOj05xz125H1KFipU1Ons/getMe "HTTP/1.1 200 OK"
+2025-08-03 10:54:59,357 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7947140028:AAGOigrSSUATHbiOj05xz125H1KFipU1Ons/deleteWebhook "HTTP/1.1 200 OK"
+2025-08-03 10:54:59,358 - apscheduler.scheduler - INFO - Added job "daily_cleanup_job" to job store "default"
+2025-08-03 10:54:59,358 - apscheduler.scheduler - INFO - Added job "hourly_stats_job" to job store "default"
+2025-08-03 10:54:59,358 - apscheduler.scheduler - INFO - Scheduler started
+2025-08-03 10:54:59,358 - telegram.ext.Application - INFO - Application started
+2025-08-03 10:55:09,841 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7947140028:AAGOigrSSUATHbiOj05xz125H1KFipU1Ons/getUpdates "HTTP/1.1 200 OK"
+2025-08-03 10:55:20,000 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7947140028:AAGOigrSSUATHbiOj05xz125H1KFipU1Ons/getUpdates "HTTP/1.1 200 OK"
