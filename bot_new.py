@@ -39,6 +39,14 @@ COMPREHENSIVE FEATURE SET:
 - Performance optimization
 """
 
+# Mock missing imghdr module
+import sys
+if 'imghdr' not in sys.modules:
+    class MockImghdr:
+        def what(self, *args, **kwargs):
+            return None
+    sys.modules['imghdr'] = MockImghdr()
+
 # bot.py (at the very top)
 # from dotenv import load_dotenv
 # load_dotenv()
@@ -101,22 +109,16 @@ from telegram import (
     Voice,
     VideoNote,
     Document,
-    InputFile, # For sending files
 )
 from telegram.constants import ParseMode, ChatType, MessageType
 from telegram.ext import (
-    AIORateLimiter,
-    ApplicationBuilder,
+    Updater,
     CallbackQueryHandler,
     CommandHandler,
-    ContextTypes,
-    Defaults,
     MessageHandler,
     filters,
     JobQueue,
-    Application,
     ConversationHandler,
-    PersistenceInput,
 )
 from telegram.error import TelegramError, BadRequest, Forbidden, NetworkError
 
@@ -1171,7 +1173,7 @@ class RoleManager:
 def admin_required(func):
     """Decorator to require admin privileges"""
     @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def wrapper(update: Update, context):
         user_id = update.effective_user.id
         user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
         
@@ -1188,7 +1190,7 @@ def admin_required(func):
 def owner_required(func):
     """Decorator to require owner privileges"""
     @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def wrapper(update: Update, context):
         user_id = update.effective_user.id
         user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
         
@@ -1205,7 +1207,7 @@ def owner_required(func):
 def premium_required(func):
     """Decorator to require premium privileges"""
     @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def wrapper(update: Update, context):
         user_id = update.effective_user.id
         user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
         
@@ -1225,7 +1227,7 @@ def rate_limit(max_calls: int = 5, time_window: int = 60):
     
     def decorator(func):
         @wraps(func)
-        async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        async def wrapper(update: Update, context):
             user_id = update.effective_user.id
             user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
             now = time.time()
@@ -1579,7 +1581,7 @@ class PhoneVerification:
 # CONVERSATION HANDLERS (for multi-step commands)
 # ============================================================================
 
-async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def cancel_conversation(update: Update, context) -> int:
     """Cancels and ends the conversation."""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -1601,7 +1603,7 @@ async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
     return ConversationHandler.END
 
 # --- Rule Creation Conversation ---
-async def create_rule_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def create_rule_start(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     
@@ -1635,7 +1637,7 @@ async def create_rule_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
     return CREATE_RULE_MODE
 
-async def create_rule_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def create_rule_mode(update: Update, context) -> int:
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -1674,7 +1676,7 @@ async def create_rule_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return CREATE_RULE_SOURCE
 
-async def create_rule_source(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def create_rule_source(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
 
@@ -1711,7 +1713,7 @@ async def create_rule_source(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     return CREATE_RULE_TARGETS
 
-async def create_rule_targets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def create_rule_targets(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
 
@@ -1795,7 +1797,7 @@ Use /rules to manage your forwarding rules.
 
 # --- Rule Editing Conversation ---
 
-async def edit_rule_start(update: Update, context: ContextTypes.DEFAULT_TYPE, rule_id: str = None) -> int:
+async def edit_rule_start(update: Update, context, rule_id: str = None) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
 
@@ -1858,7 +1860,7 @@ async def edit_rule_start(update: Update, context: ContextTypes.DEFAULT_TYPE, ru
         await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup) # Changed to HTML
     return EDIT_RULE_SELECT
 
-async def edit_rule_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def edit_rule_callback_handler(update: Update, context) -> int:
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -2122,7 +2124,7 @@ async def edit_rule_callback_handler(update: Update, context: ContextTypes.DEFAU
 
     return EDIT_RULE_SELECT # Fallback
 
-async def edit_rule_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def edit_rule_text_input(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     
@@ -2185,7 +2187,7 @@ async def edit_rule_text_input(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # --- Broadcast Conversation ---
 
-async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def broadcast_start(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     
@@ -2215,7 +2217,7 @@ async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     return BROADCAST_MESSAGE_STATE
 
 
-async def broadcast_select_target(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def broadcast_select_target(update: Update, context) -> int:
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -2236,7 +2238,7 @@ async def broadcast_select_target(update: Update, context: ContextTypes.DEFAULT_
     return BROADCAST_ROLE_MESSAGE_STATE
 
 
-async def broadcast_send_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def broadcast_send_message(update: Update, context) -> int:
     message_text = update.message.text
     target_type = context.user_data.get('broadcast_target_type', 'all')
 
@@ -2246,7 +2248,7 @@ async def broadcast_send_message(update: Update, context: ContextTypes.DEFAULT_T
     return ConversationHandler.END
 
 
-async def send_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE, message_text: str, target_type: str):
+async def send_broadcast(update: Update, context, message_text: str, target_type: str):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
 
@@ -2332,7 +2334,7 @@ broadcast_handler = ConversationHandler(
 # COMMAND HANDLERS
 # ============================================================================
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_command(update: Update, context):
     """Start command handler"""
     user = update.effective_user
     user_id = user.id
@@ -2452,7 +2454,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # --- HELP COMMAND ---
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def help_command(update: Update, context):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     role = RoleManager.get_role(user_id)
@@ -2551,7 +2553,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # --- STATUS COMMAND ---
-async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def status_command(update: Update, context):
     user = update.effective_user
     user_id = user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -2605,7 +2607,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # --- CONNECT PHONE COMMAND ---
-async def connect_phone_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def connect_phone_command(update: Update, context):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     user_profile = db.get_user(user_id)
@@ -2640,7 +2642,7 @@ async def connect_phone_command(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 # --- CONTACT HANDLER ---
-async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def contact_handler(update: Update, context):
     contact = update.message.contact
     user_id = update.message.from_user.id # Use from_user.id for contact sharing
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -2664,7 +2666,7 @@ async def contact_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.log_action(user_id=user_id, action='phone_verification', details=f"Phone: {phone_number}", status='success')
 
 # --- NEW: TELETHON ACCOUNT CONNECTION COMMANDS ---
-async def connect_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def connect_account_command(update: Update, context) -> int:
     """Start account connection process"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -2695,7 +2697,7 @@ async def connect_account_command(update: Update, context: ContextTypes.DEFAULT_
     
     return GET_PHONE_NUMBER_STATE
 
-async def get_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_phone_number(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     phone_number = update.message.text.strip()
@@ -2728,7 +2730,7 @@ async def get_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await wait_msg.edit_text(f"❌ An error occurred: {escape_html(str(e))}. Please check your API credentials and try again.")
         return ConversationHandler.END
 
-async def get_auth_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_auth_code(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     auth_code = update.message.text.strip()
@@ -2755,7 +2757,7 @@ async def get_auth_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         await update.message.reply_text(f"❌ An error occurred with your Telegram account connection: {escape_html(str(e))}. Please try again later.")
         return GET_AUTH_CODE_STATE # Stay in state for retry
 
-async def get_2fa_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_2fa_password(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     password = update.message.text.strip()
@@ -2774,7 +2776,7 @@ async def get_2fa_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text(f"❌ An error occurred with your Telegram account connection: {escape_html(str(e))}. Please try again later.")
         return GET_2FA_PASSWORD_STATE # Stay in state for retry
 
-async def disconnect_account_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def disconnect_account_command(update: Update, context):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     user_profile = db.get_user(user_id)
@@ -2790,7 +2792,7 @@ async def disconnect_account_command(update: Update, context: ContextTypes.DEFAU
 
 @premium_required
 @rate_limit(max_calls=10, time_window=60)
-async def forward_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def forward_command(update: Update, context):
     """Forward command handler - forwards a replied-to message"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -2887,7 +2889,7 @@ async def forward_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 @premium_required
-async def autoforward_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def autoforward_command(update: Update, context):
     """Auto-forward command handler - initiates conversation for rule creation"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -2899,7 +2901,7 @@ async def autoforward_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Start the conversation for rule creation
     return await create_rule_start(update, context)
 
-async def rules_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def rules_command(update: Update, context):
     """Rules management command"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -2968,7 +2970,7 @@ async def rules_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=reply_markup
         )
 
-async def manage_all_rules_command(update: Update, context: ContextTypes.DEFAULT_TYPE, page: int = 0):
+async def manage_all_rules_command(update: Update, context, page: int = 0):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     user_rules = db.get_rules(user_id)
@@ -3008,7 +3010,7 @@ async def manage_all_rules_command(update: Update, context: ContextTypes.DEFAULT
         reply_markup=reply_markup
     )
 
-async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stats_command(update: Update, context):
     """Statistics command handler"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -3091,7 +3093,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=reply_markup
         )
 
-async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def logs_command(update: Update, context):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     
@@ -3116,7 +3118,7 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif update.callback_query:
         await safe_edit_message(update.callback_query, text, parse_mode=ParseMode.HTML, reply_markup=reply_markup) # Changed to HTML
 
-async def user_settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def user_settings_command(update: Update, context):
     user_id = update.effective_user.id
     user_profile = db.get_user(user_id)
     user_lang = user_profile.settings.get('language', 'en')
@@ -3150,7 +3152,7 @@ async def user_settings_command(update: Update, context: ContextTypes.DEFAULT_TY
 # ============================================================================
 
 @admin_required
-async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def users_command(update: Update, context):
     """Users management command (admin only)"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -3211,7 +3213,7 @@ async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 @admin_required
-async def promote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def promote_command(update: Update, context):
     """Promote user command (admin only)"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -3265,7 +3267,7 @@ The user has been notified of their promotion.
         await update.message.reply_text(get_string(user_lang, "failed_to_promote_user"))
 
 @admin_required
-async def demote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def demote_command(update: Update, context):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
 
@@ -3310,7 +3312,7 @@ async def demote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Failed to demote user.")
 
 @admin_required
-async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def ban_command(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
 
@@ -3359,7 +3361,7 @@ async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return ConversationHandler.END
 
 @admin_required
-async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def unban_command(update: Update, context):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
 
@@ -3401,7 +3403,7 @@ async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.log_action(user_id, 'unban_user', f"Unbanned {target_user_id}", status='success')
 
 @admin_required
-async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def broadcast_command(update: Update, context):
     """Broadcast command handler - initiates conversation for broadcast"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -3409,7 +3411,7 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await broadcast_start(update, context)
 
 @admin_required
-async def system_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def system_stats_command(update: Update, context):
     """System statistics command (admin only)"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -3482,7 +3484,7 @@ async def system_stats_command(update: Update, context: ContextTypes.DEFAULT_TYP
         )
 
 @admin_required
-async def bot_settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def bot_settings_command(update: Update, context):
     """Settings management command (admin only)"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -3556,7 +3558,7 @@ async def bot_settings_command(update: Update, context: ContextTypes.DEFAULT_TYP
 # ============================================================================
 
 @owner_required
-async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def maintenance_command(update: Update, context):
     """Maintenance mode command (owner only)"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -3603,7 +3605,7 @@ async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 @owner_required
-async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def backup_command(update: Update, context):
     """Backup command (owner only)"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -3655,7 +3657,7 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 @owner_required
-async def restore_backup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def restore_backup_menu(update: Update, context):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
 
@@ -3685,7 +3687,7 @@ async def restore_backup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 @owner_required
-async def restore_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def restore_confirm(update: Update, context):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     
@@ -3710,7 +3712,7 @@ async def restore_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 @owner_required
-async def restore_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def restore_execute(update: Update, context):
     global db  # Declare global at the very beginning
     
     user_id = update.effective_user.id
@@ -3763,7 +3765,7 @@ async def restore_execute(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @owner_required
-async def debug_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def debug_command(update: Update, context):
     """Debug information command (owner only)"""
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
@@ -3825,7 +3827,7 @@ async def debug_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 @owner_required
-async def clear_logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def clear_logs_command(update: Update, context):
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
 
@@ -3851,7 +3853,7 @@ async def clear_logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # MESSAGE HANDLERS
 # ============================================================================
 
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def message_handler(update: Update, context):
     """Handle all incoming messages for auto-forwarding"""
     try:
         # Skip bot messages and commands
@@ -3875,7 +3877,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================================
 
 # If it's in the callback_query_handler function:
-async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def callback_query_handler(update: Update, context):
     global GLOBAL_SETTINGS  # Declare global at the very beginning
     
     query = update.callback_query
@@ -4453,7 +4455,7 @@ Use /rules to view and manage your forwarding rules.
             ]])
         )
 
-async def handle_setting_change_value(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_setting_change_value(update: Update, context) -> int:
     user_id = update.effective_user.id
     user_lang = db.get_user(user_id).settings.get('language', 'en') if db.get_user(user_id) else 'en'
     
@@ -4493,51 +4495,145 @@ async def handle_setting_change_value(update: Update, context: ContextTypes.DEFA
     return ConversationHandler.END
 
 # ============================================================================
+# ERROR HANDLER AND JOB FUNCTIONS
+# ============================================================================
+
+async def error_handler(update: object, context) -> None:
+    """Log Errors caused by Updates."""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    
+    # Log the error details
+    if update:
+        logger.error(f"Update: {update}")
+    if context:
+        logger.error(f"Context: {context}")
+
+def daily_cleanup_job(context):
+    """Daily cleanup job - runs at 2 AM"""
+    try:
+        logger.info("Running daily cleanup job...")
+        
+        # Update daily statistics
+        today = datetime.now().strftime("%Y-%m-%d")
+        stats = db.get_statistics()
+        
+        # Get today's forwards and users data
+        forwards_data = {"total": stats.total_forwards, "successful": stats.successful_forwards, "failed": stats.failed_forwards}
+        users_data = {"total": stats.total_users, "premium": stats.premium_users, "admin": stats.admin_users}
+        
+        db.update_daily_statistics(today, forwards_data, users_data)
+        
+        # Clear old logs (keep last 1000 entries)
+        logs = db.get_logs(limit=1000)
+        if len(logs) > 1000:
+            # This would need a more sophisticated cleanup in a real implementation
+            logger.info("Log cleanup would be performed here")
+        
+        logger.info("Daily cleanup job completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Error in daily cleanup job: {e}")
+
+def hourly_stats_job(context):
+    """Hourly statistics job"""
+    try:
+        logger.info("Running hourly stats job...")
+        
+        # Update hourly statistics if needed
+        stats = db.get_statistics()
+        logger.info(f"Current stats - Total forwards: {stats.total_forwards}, Active rules: {stats.active_rules}")
+        
+    except Exception as e:
+        logger.error(f"Error in hourly stats job: {e}")
+
+# ============================================================================
 # MAIN FUNCTION
 # ============================================================================
 
 def main():
     """Start the bot."""
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    # Initialize database
+    global db
+    db = DatabaseManager(DATABASE_URL)
+    db.init_database()
+    
+    # Initialize global settings
+    global GLOBAL_SETTINGS
+    GLOBAL_SETTINGS = db.get_all_global_settings()
+    if not GLOBAL_SETTINGS: # Populate with initial defaults if DB is empty
+        GLOBAL_SETTINGS = {
+            'auto_forward': True,
+            'rate_limit': RATE_LIMIT,
+            'maintenance_mode': False,
+            'phone_required': False,
+            'max_rules_per_user': 50,
+            'backup_enabled': True,
+            'owner_console_enabled': True,
+            'webhook_enabled': False,
+            'broadcast_template': "📢 <b>Broadcast Message</b>\n\n{message}",
+            'welcome_message': "👋 Welcome to the Forwarding Bot!",
+            'help_message': "📚 Use /help to see available commands."
+        }
+        # Save initial settings to database
+        for key, value in GLOBAL_SETTINGS.items():
+            db.set_global_setting(key, value)
+    
+    # Initialize forwarding engine
+    global forwarding_engine
+    forwarding_engine = ForwardingEngine()
+    forwarding_engine.load_active_rules()
+    
+    # Initialize updater
+    updater = Updater(BOT_TOKEN)
+    dispatcher = updater.dispatcher
+    
+    # Add error handler
+    dispatcher.add_error_handler(error_handler)
+    
+    # Add job queue for scheduled tasks
+    job_queue = updater.job_queue
+    job_queue.run_daily(daily_cleanup_job, time=dtime(2, 0))  # 2 AM daily
+    job_queue.run_repeating(hourly_stats_job, interval=timedelta(hours=1))
 
     # Command Handlers
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("status", status_command))
-    application.add_handler(CommandHandler("connect_phone", connect_phone_command))
-    application.add_handler(CommandHandler("connect_account", connect_account_command))
-    application.add_handler(CommandHandler("disconnect_account", disconnect_account_command))
-    application.add_handler(CommandHandler("forward", forward_command))
-    application.add_handler(CommandHandler("autoforward", autoforward_command))
-    application.add_handler(CommandHandler("rules", rules_command))
-    application.add_handler(CommandHandler("stats", stats_command))
-    application.add_handler(CommandHandler("logs", logs_command))
-    application.add_handler(CommandHandler("user_settings", user_settings_command))
+    dispatcher.add_handler(CommandHandler("start", start_command))
+    dispatcher.add_handler(CommandHandler("help", help_command))
+    dispatcher.add_handler(CommandHandler("status", status_command))
+    dispatcher.add_handler(CommandHandler("connect_phone", connect_phone_command))
+    dispatcher.add_handler(CommandHandler("connect_account", connect_account_command))
+    dispatcher.add_handler(CommandHandler("disconnect_account", disconnect_account_command))
+    dispatcher.add_handler(CommandHandler("forward", forward_command))
+    dispatcher.add_handler(CommandHandler("autoforward", autoforward_command))
+    dispatcher.add_handler(CommandHandler("rules", rules_command))
+    dispatcher.add_handler(CommandHandler("stats", stats_command))
+    dispatcher.add_handler(CommandHandler("logs", logs_command))
+    dispatcher.add_handler(CommandHandler("user_settings", user_settings_command))
     
     # Admin Commands
-    application.add_handler(CommandHandler("users", users_command))
-    application.add_handler(CommandHandler("promote", promote_command))
-    application.add_handler(CommandHandler("demote", demote_command))
-    application.add_handler(CommandHandler("ban", ban_command))
-    application.add_handler(CommandHandler("unban", unban_command))
-    application.add_handler(CommandHandler("broadcast", broadcast_command))
-    application.add_handler(CommandHandler("system_stats", system_stats_command))
-    application.add_handler(CommandHandler("bot_settings", bot_settings_command))
-    application.add_handler(CommandHandler("maintenance", maintenance_command))
-    application.add_handler(CommandHandler("backup", backup_command))
-    application.add_handler(CommandHandler("restore_backup", restore_backup_menu))
-    application.add_handler(CommandHandler("debug", debug_command))
-    application.add_handler(CommandHandler("clear_logs", clear_logs_command))
+    dispatcher.add_handler(CommandHandler("users", users_command))
+    dispatcher.add_handler(CommandHandler("promote", promote_command))
+    dispatcher.add_handler(CommandHandler("demote", demote_command))
+    dispatcher.add_handler(CommandHandler("ban", ban_command))
+    dispatcher.add_handler(CommandHandler("unban", unban_command))
+    dispatcher.add_handler(CommandHandler("broadcast", broadcast_command))
+    dispatcher.add_handler(CommandHandler("system_stats", system_stats_command))
+    dispatcher.add_handler(CommandHandler("bot_settings", bot_settings_command))
+    dispatcher.add_handler(CommandHandler("maintenance", maintenance_command))
+    dispatcher.add_handler(CommandHandler("backup", backup_command))
+    dispatcher.add_handler(CommandHandler("restore_backup", restore_backup_menu))
+    dispatcher.add_handler(CommandHandler("debug", debug_command))
+    dispatcher.add_handler(CommandHandler("clear_logs", clear_logs_command))
 
     # Callback Query Handlers
-    application.add_handler(CallbackQueryHandler(callback_query_handler))
+    dispatcher.add_handler(CallbackQueryHandler(callback_query_handler))
 
-    # Message Handlers
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    # Message Handlers - Add both text and non-text message handlers for auto-forwarding
+    dispatcher.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    dispatcher.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND & ~filters.TEXT, message_handler))
 
     # Conversation Handlers
     # Phone number connection conversation handler
-    application.add_handler(ConversationHandler(
+    dispatcher.add_handler(ConversationHandler(
         entry_points=[CommandHandler("connect_account", connect_account_command)],
         states={
             GET_PHONE_NUMBER_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone_number)],
@@ -4548,7 +4644,7 @@ def main():
     ))
 
     # Auto-forward conversation handler
-    application.add_handler(ConversationHandler(
+    dispatcher.add_handler(ConversationHandler(
         entry_points=[CommandHandler("autoforward", autoforward_command)],
         states={
             CREATE_RULE_MODE: [CallbackQueryHandler(create_rule_mode)],
@@ -4574,7 +4670,9 @@ def main():
     ))
 
     # Start the bot
-    application.run_polling()
+    logger.info("Bot starting...")
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
     main()
