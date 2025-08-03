@@ -40,8 +40,8 @@ COMPREHENSIVE FEATURE SET:
 """
 
 # bot.py (at the very top)
-# from dotenv import load_dotenv
-# load_dotenv()
+from dotenv import load_dotenv
+load_dotenv()
 
 # --- NEW IMPORTS FOR TELETHON ---
 from telethon.sync import TelegramClient
@@ -124,20 +124,20 @@ from telegram.error import TelegramError, BadRequest, Forbidden, NetworkError
 # CONFIGURATION SECTION
 # ============================================================================
 
-# Bot Configuration - Direct Values
-BOT_TOKEN = "7947140028:AAGOigrSSUATHbiOj05xz125H1KFipU1Ons"
-OWNER_ID = 7925041792
-ADMIN_IDS = [7925041792]
-DATABASE_URL = "bot_data.db"
-LOG_LEVEL = "INFO"
-WEBHOOK_URL = ""
-WEBHOOK_PORT = 8443
-MAX_WORKERS = 4
-RATE_LIMIT = 30
+# Bot Configuration
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID", "0"))
+ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
+DATABASE_URL = os.getenv("DATABASE_URL", "bot_data.db") # Default to a file if not set
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", "8443"))
+MAX_WORKERS = int(os.getenv("MAX_WORKERS", "4"))
+RATE_LIMIT = int(os.getenv("RATE_LIMIT", "30"))
 
 # --- NEW TELETHON CONFIG ---
-API_ID = 21635609
-API_HASH = "8a87c14e3032c550e63c85224cd56655"
+API_ID = int(os.getenv("API_ID", "21635609"))
+API_HASH = os.getenv("API_HASH", "8a87c14e3032c550e63c85224cd56655")
 # --- END NEW TELETHON CONFIG ---
 
 # File Paths
@@ -149,6 +149,12 @@ TEMP_DIR = Path("temp")
 # Create directories if they don't exist
 for dir_path in [DATA_DIR, LOGS_DIR, BACKUP_DIR, TEMP_DIR]:
     dir_path.mkdir(exist_ok=True)
+
+DATA_FILE = DATA_DIR / "bot_data.json" # Legacy data file
+LOG_FILE = LOGS_DIR / "bot.log"
+ERROR_LOG_FILE = LOGS_DIR / "errors.log"
+STATS_FILE = DATA_DIR / "stats.json" # Legacy stats file
+SETTINGS_FILE = DATA_DIR / "settings.json" # Legacy settings file
 
 DATA_FILE = DATA_DIR / "bot_data.json" # Legacy data file
 LOG_FILE = LOGS_DIR / "bot.log"
@@ -296,6 +302,73 @@ class Statistics:
             self.daily_stats = {}
         if self.monthly_stats is None:
             self.monthly_stats = {}
+
+# ============================================================================
+# GLOBAL SETTINGS AND INITIALIZATION
+# ============================================================================
+
+# Global settings dictionary
+GLOBAL_SETTINGS = {
+    'rate_limit': RATE_LIMIT,
+    'max_workers': MAX_WORKERS,
+    'webhook_url': WEBHOOK_URL,
+    'webhook_port': WEBHOOK_PORT,
+    'log_level': LOG_LEVEL,
+    'database_url': DATABASE_URL,
+    'maintenance_mode': False,
+    'auto_backup': True,
+    'backup_interval': 24,  # hours
+    'max_log_size': 100,  # MB
+    'max_log_files': 5,
+    'enable_telethon': True,
+    'enable_webhook': False,
+    'enable_polling': True,
+    'enable_rate_limiting': True,
+    'enable_error_logging': True,
+    'enable_statistics': True,
+    'enable_scheduled_jobs': True,
+    'enable_owner_console': False,
+    'enable_debug_mode': False,
+    'enable_auto_cleanup': True,
+    'enable_hourly_stats': True,
+    'enable_daily_cleanup': True,
+    'enable_user_analytics': True,
+    'enable_premium_features': True,
+    'enable_admin_features': True,
+    'enable_owner_features': True,
+    'enable_phone_verification': False,
+    'enable_contact_sharing': True,
+    'enable_broadcast_features': True,
+    'enable_rule_management': True,
+    'enable_forwarding_engine': True,
+    'enable_telethon_manager': True,
+    'enable_database_backup': True,
+    'enable_log_rotation': True,
+    'enable_error_recovery': True,
+    'enable_performance_monitoring': True,
+    'enable_security_features': True,
+    'enable_rate_limiting': True,
+    'enable_flood_control': True,
+    'enable_message_filtering': True,
+    'enable_keyword_filtering': True,
+    'enable_schedule_filtering': True,
+    'enable_media_filtering': True,
+    'enable_text_replacement': True,
+    'enable_user_accounts': True,
+    'enable_auto_forwarding': True,
+    'enable_manual_forwarding': True,
+    'enable_batch_operations': True,
+    'enable_message_queuing': True,
+    'enable_real_time_monitoring': True,
+    'enable_advanced_reporting': True,
+    'enable_custom_notifications': True,
+    'enable_integration_capabilities': True,
+    'enable_extended_logging': True,
+    'enable_data_visualization': True,
+    'enable_performance_optimization': True,
+}
+
+# Initialize database and forwarding engine will be done after class definitions
 
 # ============================================================================
 # DATABASE MANAGER
@@ -4492,29 +4565,177 @@ async def handle_setting_change_value(update: Update, context: ContextTypes.DEFA
     context.user_data.clear()  # Clear user data after processing
     return ConversationHandler.END
 
+async def view_user_profile_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle user profile view callback"""
+    query = update.callback_query
+    await query.answer()
+    
+    # Extract user ID from callback data
+    callback_data = query.data
+    if not callback_data.startswith("view_user_profile_"):
+        return
+    
+    try:
+        user_id = int(callback_data.split("_")[-1])
+        user_profile = db.get_user(user_id)
+        
+        if not user_profile:
+            await query.edit_message_text("❌ User not found.")
+            return
+        
+        # Format user profile information
+        profile_text = f"👤 <b>User Profile</b>\n\n"
+        profile_text += f"🆔 <b>User ID:</b> <code>{user_profile.user_id}</code>\n"
+        profile_text += f"👤 <b>Name:</b> {escape_html(user_profile.first_name)} {escape_html(user_profile.last_name)}\n"
+        profile_text += f"📝 <b>Username:</b> @{escape_html(user_profile.username)}\n"
+        profile_text += f"🎭 <b>Role:</b> {escape_html(user_profile.role.title())}\n"
+        profile_text += f"📅 <b>Joined:</b> {escape_html(user_profile.joined_date)}\n"
+        profile_text += f"🕒 <b>Last Active:</b> {escape_html(user_profile.last_active)}\n"
+        profile_text += f"📊 <b>Total Forwards:</b> {user_profile.total_forwards}\n"
+        profile_text += f"⚙️ <b>Total Rules:</b> {user_profile.total_rules}\n"
+        
+        if user_profile.is_banned:
+            profile_text += f"🚫 <b>Status:</b> Banned\n"
+            profile_text += f"📝 <b>Reason:</b> {escape_html(user_profile.ban_reason)}\n"
+        else:
+            profile_text += f"✅ <b>Status:</b> Active\n"
+        
+        if user_profile.premium_until:
+            profile_text += f"⭐ <b>Premium Until:</b> {escape_html(user_profile.premium_until)}\n"
+        
+        # Add action buttons
+        keyboard = [
+            [InlineKeyboardButton("🔙 Back to Users", callback_data="users_list")]
+        ]
+        
+        if not user_profile.is_banned:
+            keyboard.append([InlineKeyboardButton("🚫 Ban User", callback_data=f"ban_user_{user_id}")])
+        else:
+            keyboard.append([InlineKeyboardButton("✅ Unban User", callback_data=f"unban_user_{user_id}")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            profile_text,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
+        
+    except (ValueError, IndexError):
+        await query.edit_message_text("❌ Invalid user ID.")
+    except Exception as e:
+        logger.error(f"Error in view_user_profile_callback: {e}")
+        await query.edit_message_text("❌ An error occurred while viewing the user profile.")
+
+# ============================================================================
+# INITIALIZATION
+# ============================================================================
+
+# Initialize database
+db = DatabaseManager(DATABASE_URL)
+db.init_database()
+
+# Initialize forwarding engine
+forwarding_engine = ForwardingEngine()
+
+# ============================================================================
+# ERROR HANDLER AND SCHEDULED JOBS
+# ============================================================================
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log Errors caused by Updates."""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    
+    # Log to error file
+    error_logger.error(
+        f"Update {update} caused error {context.error}",
+        exc_info=context.error
+    )
+    
+    # Try to notify user about the error
+    try:
+        if update and hasattr(update, 'effective_chat'):
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="❌ An error occurred while processing your request. Please try again later."
+            )
+    except Exception as e:
+        logger.error(f"Failed to send error message to user: {e}")
+
+async def daily_cleanup_job(context: ContextTypes.DEFAULT_TYPE):
+    """Daily cleanup job"""
+    try:
+        logger.info("Running daily cleanup job...")
+        
+        # Clean up old logs
+        if GLOBAL_SETTINGS.get('enable_auto_cleanup', True):
+            # Implementation for log cleanup
+            pass
+        
+        # Update statistics
+        if GLOBAL_SETTINGS.get('enable_statistics', True):
+            today = datetime.now().strftime('%Y-%m-%d')
+            stats = db.get_statistics()
+            # Update daily stats
+            pass
+        
+        logger.info("Daily cleanup job completed successfully")
+    except Exception as e:
+        logger.error(f"Error in daily cleanup job: {e}")
+
+async def hourly_stats_job(context: ContextTypes.DEFAULT_TYPE):
+    """Hourly statistics job"""
+    try:
+        if GLOBAL_SETTINGS.get('enable_hourly_stats', True):
+            # Update hourly statistics
+            pass
+    except Exception as e:
+        logger.error(f"Error in hourly stats job: {e}")
+
 # ============================================================================
 # MAIN FUNCTION
 # ============================================================================
 
 def main():
-    """Start the bot."""
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    """Main function to run the bot"""
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN environment variable is required!")
+        sys.exit(1)
+    
+    if not OWNER_ID:
+        logger.error("OWNER_ID environment variable is required!")
+        sys.exit(1)
+    
+    logger.info("🚀 Starting ForwardBot Premium v3.0.0...")
+    
+    defaults = Defaults(
+        parse_mode=ParseMode.HTML, # Changed to HTML for consistency
+        block=False
+    )
+    
+    application = (
+        ApplicationBuilder()
+        .token(BOT_TOKEN)
+        .defaults(defaults)
+        .rate_limiter(AIORateLimiter(overall_max_rate=GLOBAL_SETTINGS.get('rate_limit', RATE_LIMIT)))
+        .build()
+    )
+    
+    # Store bot start time
+    application.bot_data['start_time'] = time.time()
 
-    # Command Handlers
+    # Add command handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CommandHandler("connect_phone", connect_phone_command))
-    application.add_handler(CommandHandler("connect_account", connect_account_command))
-    application.add_handler(CommandHandler("disconnect_account", disconnect_account_command))
     application.add_handler(CommandHandler("forward", forward_command))
-    application.add_handler(CommandHandler("autoforward", autoforward_command))
     application.add_handler(CommandHandler("rules", rules_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("logs", logs_command))
-    application.add_handler(CommandHandler("user_settings", user_settings_command))
-    
-    # Admin Commands
+    application.add_handler(CommandHandler("settings", user_settings_command)) # User settings
+
+    # Admin commands
     application.add_handler(CommandHandler("users", users_command))
     application.add_handler(CommandHandler("promote", promote_command))
     application.add_handler(CommandHandler("demote", demote_command))
@@ -4522,56 +4743,69 @@ def main():
     application.add_handler(CommandHandler("unban", unban_command))
     application.add_handler(CommandHandler("broadcast", broadcast_command))
     application.add_handler(CommandHandler("system_stats", system_stats_command))
-    application.add_handler(CommandHandler("bot_settings", bot_settings_command))
+    application.add_handler(CommandHandler("bot_settings", bot_settings_command)) # Global bot settings
+    application.add_handler(MessageHandler(filters.CONTACT, contact_handler))
+    # Owner commands  
     application.add_handler(CommandHandler("maintenance", maintenance_command))
     application.add_handler(CommandHandler("backup", backup_command))
-    application.add_handler(CommandHandler("restore_backup", restore_backup_menu))
+    application.add_handler(CommandHandler("restore", restore_backup_menu)) # Changed to menu
     application.add_handler(CommandHandler("debug", debug_command))
     application.add_handler(CommandHandler("clear_logs", clear_logs_command))
-
-    # Callback Query Handlers
-    application.add_handler(CallbackQueryHandler(callback_query_handler))
-
-    # Message Handlers
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    
+    # Add this before application.run_polling() in main()
+    application.add_error_handler(error_handler)
 
     # Conversation Handlers
-    # Phone number connection conversation handler
-    application.add_handler(ConversationHandler(
-        entry_points=[CommandHandler("connect_account", connect_account_command)],
-        states={
-            GET_PHONE_NUMBER_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone_number)],
-            GET_AUTH_CODE_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_auth_code)],
-            GET_2FA_PASSWORD_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_2fa_password)]
-        },
-        fallbacks=[CommandHandler("cancel", cancel_conversation)]
-    ))
-
-    # Auto-forward conversation handler
+    # Rule Creation
     application.add_handler(ConversationHandler(
         entry_points=[CommandHandler("autoforward", autoforward_command)],
         states={
-            CREATE_RULE_MODE: [CallbackQueryHandler(create_rule_mode)],
+            CREATE_RULE_MODE: [CallbackQueryHandler(create_rule_mode, pattern="^mode_")],
             CREATE_RULE_SOURCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_rule_source)],
             CREATE_RULE_TARGETS: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_rule_targets)],
-            EDIT_RULE_SELECT: [CallbackQueryHandler(edit_rule_callback_handler)],
+        },
+        fallbacks=[CallbackQueryHandler(cancel_conversation, pattern="^cancel_conversation$"),
+                   CommandHandler("cancel", cancel_conversation)],
+        # Removed map_to_parent as this is a top-level conversation
+    ))
+
+    # Rule Editing
+    application.add_handler(ConversationHandler(
+        entry_points=[CallbackQueryHandler(edit_rule_start, pattern="^rule_settings_")], # Entry point for rule settings
+        states={
+            EDIT_RULE_SELECT: [CallbackQueryHandler(edit_rule_callback_handler, pattern="^edit_rule_.*|^confirm_delete_rule_.*|^set_mode_.*")],
             EDIT_RULE_KEYWORDS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
             EDIT_RULE_EXCLUDE_KEYWORDS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
             EDIT_RULE_REPLACE_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
-            EDIT_RULE_FILTERS: [CallbackQueryHandler(edit_rule_callback_handler)],
-            EDIT_RULE_SCHEDULE: [CallbackQueryHandler(edit_rule_callback_handler)],
+            EDIT_RULE_FILTERS: [CallbackQueryHandler(edit_rule_callback_handler, pattern="^edit_rule_filter_.*")],
+            EDIT_RULE_SCHEDULE: [CallbackQueryHandler(edit_rule_callback_handler, pattern="^edit_rule_schedule_.*")],
             EDIT_RULE_TARGETS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
-            EDIT_RULE_MODE: [CallbackQueryHandler(edit_rule_callback_handler)],
+            EDIT_RULE_MODE: [CallbackQueryHandler(edit_rule_callback_handler, pattern="^set_mode_.*")],
             EDIT_RULE_MEDIA_TYPES: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
             EDIT_RULE_LENGTH_FILTERS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
             EDIT_RULE_SCHEDULE_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
             EDIT_RULE_SCHEDULE_DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
-            BROADCAST_MESSAGE_STATE: [CallbackQueryHandler(broadcast_select_target)],
-            BROADCAST_ROLE_MESSAGE_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send_message)],
-            SETTING_CHANGE_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_setting_change_value)]
+            SETTING_CHANGE_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_setting_change_value)], # For user settings text input
         },
-        fallbacks=[CommandHandler("cancel", cancel_conversation)]
+        fallbacks=[CallbackQueryHandler(cancel_conversation, pattern="^cancel_conversation$"),
+                   CommandHandler("cancel", cancel_conversation)],
+        # Removed map_to_parent as this is a top-level conversation
     ))
+
+    # Broadcast Conversation (already defined as broadcast_handler)
+    application.add_handler(broadcast_handler)
+
+    # Message Handler for all non-command messages
+    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, message_handler)) # Ensure it doesn't catch commands
+    
+    # Callback Query Handler for inline buttons (general ones not part of conversations)
+    application.add_handler(CallbackQueryHandler(callback_query_handler, pattern="^(?!mode_|edit_rule_|confirm_delete_rule_|set_mode_|broadcast_).*")) # Exclude patterns handled by conversations
+    application.add_handler(CallbackQueryHandler(view_user_profile_callback, pattern="^view_user_profile_")) # Specific handler for user profile view
+
+    # Scheduled Jobs
+    job_queue = application.job_queue
+    job_queue.run_daily(daily_cleanup_job, time=dtime(hour=2, minute=0))
+    job_queue.run_repeating(hourly_stats_job, interval=3600, first=0)
 
     # Start the bot
     application.run_polling()
