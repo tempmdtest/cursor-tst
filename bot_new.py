@@ -58,7 +58,7 @@ from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError, P
 from telethon.tl.types import Channel, Chat, User as TelethonUser # To differentiate from telegram.User
 # --- END NEW IMPORTS ---
 
-from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, ConversationHandler, filters
+from telegram.ext import CommandHandler, CallbackQueryHandler, MessageHandler, ConversationHandler, Filters
 
 # Renamed to avoid conflict with global vars if they were used elsewhere
 # These are typically just integers for ConversationHandler states
@@ -110,7 +110,7 @@ from telegram import (
     VideoNote,
     Document,
 )
-from telegram.constants import ParseMode, ChatType, MessageType
+from telegram import ParseMode
 from telegram.ext import (
     Updater,
     CallbackQueryHandler,
@@ -120,7 +120,7 @@ from telegram.ext import (
     JobQueue,
     ConversationHandler,
 )
-from telegram.error import TelegramError, BadRequest, Forbidden, NetworkError
+from telegram.error import TelegramError, BadRequest, NetworkError
 
 # ============================================================================
 # CONFIGURATION SECTION
@@ -1343,18 +1343,18 @@ class ForwardingEngine:
             # Check filters
             if rule.filters:
                 # Media only filter
-                if rule.filters.get("media_only", False) and not message.photo and not message.video and not message.document:
+                if rule.Filters.get("media_only", False) and not message.photo and not message.video and not message.document:
                     return False
                 
                 # Text only filter
-                if rule.filters.get("text_only", False) and not message.text:
+                if rule.Filters.get("text_only", False) and not message.text:
                     return False
                 
                 # Length filters
                 if message.text:
                     text_length = len(message.text)
-                    min_length = rule.filters.get("min_length", 0)
-                    max_length = rule.filters.get("max_length", 0)
+                    min_length = rule.Filters.get("min_length", 0)
+                    max_length = rule.Filters.get("max_length", 0)
                     
                     if min_length > 0 and text_length < min_length:
                         return False
@@ -2061,7 +2061,7 @@ async def edit_rule_callback_handler(update: Update, context) -> int:
         return EDIT_RULE_SELECT
 
     elif data.startswith("edit_rule_filter_media_types"):
-        allowed_types_str = ', '.join(rule.filters.get("allowed_types", [])) if rule.filters.get("allowed_types") else 'None'
+        allowed_types_str = ', '.join(rule.Filters.get("allowed_types", [])) if rule.Filters.get("allowed_types") else 'None'
         await safe_edit_message(
             query,
             get_string(user_lang, "rule_edit_media_types").format(
@@ -2073,8 +2073,8 @@ async def edit_rule_callback_handler(update: Update, context) -> int:
         return EDIT_RULE_MEDIA_TYPES
 
     elif data.startswith("edit_rule_filter_length"):
-        min_len = rule.filters.get("min_length", 0)
-        max_len = rule.filters.get("max_length", 0)
+        min_len = rule.Filters.get("min_length", 0)
+        max_len = rule.Filters.get("max_length", 0)
         await safe_edit_message(
             query,
             get_string(user_lang, "rule_edit_length_filters").format(
@@ -2321,7 +2321,7 @@ broadcast_handler = ConversationHandler(
             CallbackQueryHandler(broadcast_select_target, pattern="^broadcast_.*")
         ],
         BROADCAST_ROLE_MESSAGE_STATE: [ # Use the renamed state
-            MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send_message)
+            MessageHandler(Filters.text & ~Filters.command, broadcast_send_message)
         ]
     },
     fallbacks=[
@@ -4584,7 +4584,7 @@ def main():
     forwarding_engine.load_active_rules()
     
     # Initialize updater
-    updater = Updater(BOT_TOKEN)
+    updater = Updater(BOT_TOKEN, use_context=True)
     dispatcher = updater.dispatcher
     
     # Add error handler
@@ -4628,17 +4628,17 @@ def main():
     dispatcher.add_handler(CallbackQueryHandler(callback_query_handler))
 
     # Message Handlers - Add both text and non-text message handlers for auto-forwarding
-    dispatcher.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    dispatcher.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND & ~filters.TEXT, message_handler))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, message_handler))
+    dispatcher.add_handler(MessageHandler(Filters.all & ~Filters.command & ~Filters.text, message_handler))
 
     # Conversation Handlers
     # Phone number connection conversation handler
     dispatcher.add_handler(ConversationHandler(
         entry_points=[CommandHandler("connect_account", connect_account_command)],
         states={
-            GET_PHONE_NUMBER_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone_number)],
-            GET_AUTH_CODE_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_auth_code)],
-            GET_2FA_PASSWORD_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_2fa_password)]
+            GET_PHONE_NUMBER_STATE: [MessageHandler(Filters.text & ~Filters.command, get_phone_number)],
+            GET_AUTH_CODE_STATE: [MessageHandler(Filters.text & ~Filters.command, get_auth_code)],
+            GET_2FA_PASSWORD_STATE: [MessageHandler(Filters.text & ~Filters.command, get_2fa_password)]
         },
         fallbacks=[CommandHandler("cancel", cancel_conversation)]
     ))
@@ -4648,23 +4648,23 @@ def main():
         entry_points=[CommandHandler("autoforward", autoforward_command)],
         states={
             CREATE_RULE_MODE: [CallbackQueryHandler(create_rule_mode)],
-            CREATE_RULE_SOURCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_rule_source)],
-            CREATE_RULE_TARGETS: [MessageHandler(filters.TEXT & ~filters.COMMAND, create_rule_targets)],
+            CREATE_RULE_SOURCE: [MessageHandler(Filters.text & ~Filters.command, create_rule_source)],
+            CREATE_RULE_TARGETS: [MessageHandler(Filters.text & ~Filters.command, create_rule_targets)],
             EDIT_RULE_SELECT: [CallbackQueryHandler(edit_rule_callback_handler)],
-            EDIT_RULE_KEYWORDS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
-            EDIT_RULE_EXCLUDE_KEYWORDS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
-            EDIT_RULE_REPLACE_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
+            EDIT_RULE_KEYWORDS: [MessageHandler(Filters.text & ~Filters.command, edit_rule_text_input)],
+            EDIT_RULE_EXCLUDE_KEYWORDS: [MessageHandler(Filters.text & ~Filters.command, edit_rule_text_input)],
+            EDIT_RULE_REPLACE_TEXT: [MessageHandler(Filters.text & ~Filters.command, edit_rule_text_input)],
             EDIT_RULE_FILTERS: [CallbackQueryHandler(edit_rule_callback_handler)],
             EDIT_RULE_SCHEDULE: [CallbackQueryHandler(edit_rule_callback_handler)],
-            EDIT_RULE_TARGETS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
+            EDIT_RULE_TARGETS: [MessageHandler(Filters.text & ~Filters.command, edit_rule_text_input)],
             EDIT_RULE_MODE: [CallbackQueryHandler(edit_rule_callback_handler)],
-            EDIT_RULE_MEDIA_TYPES: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
-            EDIT_RULE_LENGTH_FILTERS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
-            EDIT_RULE_SCHEDULE_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
-            EDIT_RULE_SCHEDULE_DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_rule_text_input)],
+            EDIT_RULE_MEDIA_TYPES: [MessageHandler(Filters.text & ~Filters.command, edit_rule_text_input)],
+            EDIT_RULE_LENGTH_FILTERS: [MessageHandler(Filters.text & ~Filters.command, edit_rule_text_input)],
+            EDIT_RULE_SCHEDULE_TIME: [MessageHandler(Filters.text & ~Filters.command, edit_rule_text_input)],
+            EDIT_RULE_SCHEDULE_DAYS: [MessageHandler(Filters.text & ~Filters.command, edit_rule_text_input)],
             BROADCAST_MESSAGE_STATE: [CallbackQueryHandler(broadcast_select_target)],
-            BROADCAST_ROLE_MESSAGE_STATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send_message)],
-            SETTING_CHANGE_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_setting_change_value)]
+            BROADCAST_ROLE_MESSAGE_STATE: [MessageHandler(Filters.text & ~Filters.command, broadcast_send_message)],
+            SETTING_CHANGE_VALUE: [MessageHandler(Filters.text & ~Filters.command, handle_setting_change_value)]
         },
         fallbacks=[CommandHandler("cancel", cancel_conversation)]
     ))
