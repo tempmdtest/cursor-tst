@@ -758,7 +758,7 @@ class TelethonManager:
         return client, sent_code.phone_code_hash
 
     @classmethod
-    async def complete_login(cls, user_id: int, auth_code: str, phone_code_hash: str) -> Union[str, Literal["2fa_required"]]:
+    async def complete_login(cls, user_id: int, auth_code: str, phone_code_hash: str) -> str:
         client = cls._active_clients.get(user_id)
         if not client:
             raise ValueError("No active client session found for this user. Please restart login.")
@@ -767,8 +767,9 @@ class TelethonManager:
             await client.sign_in(code=auth_code, phone_code_hash=phone_code_hash)
             session_string = client.session.save()
             return session_string
-        except SessionPasswordNeededError:
-            return "2fa_required"
+        except SessionPasswordNeededError as e:
+            # Propagate 2FA requirement to caller to handle asking for password
+            raise e
         except (PhoneCodeExpiredError, PhoneCodeInvalidError, FloodWaitError) as e:
             await client.disconnect()
             cls._active_clients.pop(user_id, None)
@@ -2739,7 +2740,18 @@ async def get_auth_code(update: Update, context) -> int:
     try:
         session_string = await TelethonManager.complete_login(user_id, auth_code, phone_code_hash)
         user_profile = db.get_user(user_id)
-        if user_profile:
+        if user_profile is None:
+            user_profile = UserProfile(
+                user_id=user_id,
+                username=update.effective_user.username or "",
+                first_name=update.effective_user.first_name or "",
+                last_name=update.effective_user.last_name or "",
+                joined_date=get_current_time(),
+                last_active=get_current_time(),
+                telethon_session=session_string
+            )
+            db.save_user(user_profile)
+        else:
             user_profile.telethon_session = session_string
             db.save_user(user_profile)
         await update.message.reply_text("✅ Your Telegram account has been successfully connected! 🎉")
@@ -2765,7 +2777,18 @@ async def get_2fa_password(update: Update, context) -> int:
     try:
         session_string = await TelethonManager.complete_2fa(user_id, password)
         user_profile = db.get_user(user_id)
-        if user_profile:
+        if user_profile is None:
+            user_profile = UserProfile(
+                user_id=user_id,
+                username=update.effective_user.username or "",
+                first_name=update.effective_user.first_name or "",
+                last_name=update.effective_user.last_name or "",
+                joined_date=get_current_time(),
+                last_active=get_current_time(),
+                telethon_session=session_string
+            )
+            db.save_user(user_profile)
+        else:
             user_profile.telethon_session = session_string
             db.save_user(user_profile)
         await update.message.reply_text("✅ Your Telegram account has been successfully connected! 🎉")
